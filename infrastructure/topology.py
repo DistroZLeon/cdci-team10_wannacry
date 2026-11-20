@@ -17,6 +17,8 @@ ATTACKER_LINK = "attacker-eth0"
 ATTACKER_PORT = "s1-attacker"
 QEMU_PIDFILE = "/run/cdci-wannacry-qemu.pid"
 LOCK_FILE = "/run/cdci-wannacry.lock"
+TAP_NAME = "tap-win7"
+TAP_DHCP = "tap-dhcp"
 
 
 class LabError(RuntimeError):
@@ -85,7 +87,8 @@ def launch_windows(windows_image):
         "-drive", f"file={windows_image},format=qcow2,if=ide",
         "-netdev", f"tap,id=net0,ifname={TAP_NAME},script=no,downscript=no",
         "-device", "e1000,netdev=net0",
-        "-nographic", "-daemonize",
+        "-vnc", ":1", 
+        "-daemonize",
         "-pidfile", QEMU_PIDFILE,
     ]
     
@@ -139,6 +142,7 @@ def run_lab(windows_image, victim_ip, hold):
     with ExitStack() as cleanup:
         net = Containernet(controller=None, switch=OVSSwitch, build=False)
         cleanup.callback(stop_windows)
+        cleanup.callback(teardown_dhcp)
         cleanup.callback(teardown_tap)
         cleanup.callback(net.stop)
         cleanup.callback(require_clean_state, "Teardown")
@@ -153,6 +157,7 @@ def run_lab(windows_image, victim_ip, hold):
 
         setup_tap()
         attach_tap()
+        setup_dhcp()
         launch_windows(windows_image)
 
         print(f"Attacker: {ATTACKER_IP}/24  (container {container('attacker')})")
@@ -168,6 +173,30 @@ def run_lab(windows_image, victim_ip, hold):
         print(f"  This spawns a SYSTEM shell directly (no Metasploit module).")
         if hold:
             input("Press Enter to tear down: ")
+
+
+def setup_dhcp():
+    # Create the interface
+    run("ip", "tuntap", "add", TAP_DHCP, "mode", "tap")
+    run("ip", "link", "set", TAP_DHCP, "up")
+    run(*OVS, "add-port", SWITCH, TAP_DHCP, "--", "set", "Interface", TAP_DHCP, "type=internal")
+
+    run("ip", "addr", "add", "10.0.0.1/24", "dev", TAP_DHCP)
+
+    run("dnsmasq", "--interface=" + TAP_DHCP, 
+        "--dhcp-range=10.0.0.3,10.0.0.3,255.255.255.0,1h", 
+        "--pid-file=/run/cdci-dnsmasq.pid")
+
+def teardown_dhcp():
+    if os.path.exists("/run/cdci-dnsmasq.pid"):
+        try:
+            with open("/run/cdci-dnsmasq.pid") as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 15)
+        except (OSError, ValueError):
+            pass
+    run("ip", "link", "set", TAP_DHCP, "down", check=False)
+    run("ip", "tuntap", "del", TAP_DHCP, "mode", "tap", check=False)
 
 
 def main():

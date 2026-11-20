@@ -10,7 +10,7 @@ STATE=/opt/cdci-wannacry
 apt-get update
 apt-get install -y \
     python3-venv docker.io openvswitch-switch \
-    qemu-system-x86 qemu-kvm qemu-utils cpu-checker \
+    qemu-system-x86 qemu-utils cpu-checker dnsmasq unzip \
     iproute2 curl jq gdown make build-essential
 
 # --- venv + requirements ---
@@ -32,13 +32,25 @@ docker build -t cdci-wannacry/attacker:local \
 
 # --- Windows 7 victim image ---
 if [[ ! -f "$STATE/win7.qcow2" ]]; then
-    echo "Downloading Windows 7 lab OVA..."
-    gdown --id 1YPFRlCmJdtO08CDZLDZf0HyHAPElzNDj -O "$STATE/win7.ova"
+    if [[ ! -f "$STATE/win7.ova" ]]; then
+        echo "Downloading Windows 7 lab OVA..."
+        gdown 1YPFRlCmJdtO08CDZLDZf0HyHAPElzNDj -O "$STATE/win7.ova"
+    fi
+    
+    echo "Extracting OVA..."
     mkdir -p "$STATE/win7-extracted"
-    tar -xf "$STATE/win7.ova" -C "$STATE/win7-extracted"
+    
+    # Detect if it's a ZIP or TAR
+    if file "$STATE/win7.ova" | grep -q "Zip archive"; then
+        unzip -q "$STATE/win7.ova" -d "$STATE/win7-extracted"
+    else
+        tar -xf "$STATE/win7.ova" -C "$STATE/win7-extracted"
+    fi
+    
     DISK=$(find "$STATE/win7-extracted" -type f \
              \( -name '*.vmdk' -o -name '*.vdi' -o -name '*.qcow2' \) | head -n1)
     [[ -n "$DISK" ]] || { echo "No virtual disk found in OVA." >&2; exit 1; }
+    
     FMT="${DISK##*.}"
     echo "Converting $DISK (format $FMT) -> qcow2..."
     qemu-img convert -f "$FMT" -O qcow2 "$DISK" "$STATE/win7.qcow2"
