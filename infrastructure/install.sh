@@ -10,7 +10,7 @@ STATE=/opt/cdci-wannacry
 apt-get update
 apt-get install -y \
     python3-venv docker.io openvswitch-switch \
-    qemu-system-x86 qemu-utils cpu-checker dnsmasq unzip \
+    qemu-system-x86 qemu-utils cpu-checker dnsmasq unzip p7zip-full \
     iproute2 curl jq gdown make build-essential
 
 # --- venv + requirements ---
@@ -49,9 +49,9 @@ if [[ ! -f "$STATE/win7.qcow2" ]]; then
     mkdir -p "$STATE/win7-extracted"
     
     # Detect if it's a ZIP or TAR and extract, showing progress
-    if file "$STATE/win7.ova" | grep -q "Zip archive"; then
-        if ! unzip -o "$STATE/win7.ova" -d "$STATE/win7-extracted"; then
-            echo "ERROR: unzip failed! The file may be corrupted or disk is full." >&2
+        if file "$STATE/win7.ova" | grep -q "Zip archive"; then
+        if ! 7z x -y -o"$STATE/win7-extracted" "$STATE/win7.ova" > /dev/null; then
+            echo "ERROR: 7z extraction failed! The file may be corrupted or disk is full." >&2
             exit 1
         fi
     else
