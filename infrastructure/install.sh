@@ -48,9 +48,8 @@ if [[ ! -f "$STATE/win7.qcow2" ]]; then
     rm -rf "$STATE/win7-extracted"
     mkdir -p "$STATE/win7-extracted"
     
-    # Detect if it's a ZIP or TAR and extract, showing progress
-        if file "$STATE/win7.ova" | grep -q "Zip archive"; then
-        if ! 7z x -y -o"$STATE/win7-extracted" "$STATE/win7.ova" > /dev/null; then
+    if file "$STATE/win7.ova" | grep -q "Zip archive"; then
+        if ! 7z x -y -o"$STATE/win7-extracted" "$STATE/win7.ova"; then
             echo "ERROR: 7z extraction failed! The file may be corrupted or disk is full." >&2
             exit 1
         fi
@@ -77,7 +76,6 @@ if [[ ! -f "$STATE/win7.qcow2" ]]; then
     rm -rf "$STATE/win7-extracted"
 
     echo "Windows 7 image ready: $STATE/win7.qcow2"
-fi
 fi
 
 # --- version record ---
