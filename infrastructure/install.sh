@@ -38,11 +38,12 @@ if [[ ! -f "$STATE/win7.qcow2" ]]; then
     fi
     
     echo "Extracting OVA..."
+    rm -rf "$STATE/win7-extracted"
     mkdir -p "$STATE/win7-extracted"
     
     # Detect if it's a ZIP or TAR
     if file "$STATE/win7.ova" | grep -q "Zip archive"; then
-        unzip -q "$STATE/win7.ova" -d "$STATE/win7-extracted"
+        unzip -o -q "$STATE/win7.ova" -d "$STATE/win7-extracted"
     else
         tar -xf "$STATE/win7.ova" -C "$STATE/win7-extracted"
     fi
@@ -68,6 +69,5 @@ fi
 echo ""
 echo "Online stage complete."
 echo "Next:"
-echo "  1. Boot $STATE/win7.qcow2 once under QEMU to confirm IP is 10.0.0.3/24."
-echo "  2. Disconnect every network adapter from the VM."
-echo "  3. sudo bash infrastructure/run.sh --offline"
+echo "  Run the lab: sudo bash infrastructure/run.sh --hold"
+echo "  (The DHCP server will automatically assign 10.0.0.3 to the Windows VM.)"
