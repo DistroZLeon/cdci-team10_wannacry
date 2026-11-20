@@ -71,6 +71,11 @@ if [[ ! -f "$STATE/win7.qcow2" ]]; then
         echo "ERROR: qemu-img conversion failed." >&2
         exit 1
     fi
+
+    echo "Cleaning up temporary OVA files..."
+    rm -f "$STATE/win7.ova"
+    rm -rf "$STATE/win7-extracted"
+
     echo "Windows 7 image ready: $STATE/win7.qcow2"
 fi
 fi

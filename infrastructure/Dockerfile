@@ -1,7 +1,6 @@
 FROM kalilinux/kali-rolling
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    metasploit-framework \
     nmap \
     netcat-openbsd \
     curl \
