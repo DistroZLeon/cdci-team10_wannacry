@@ -12,7 +12,6 @@ if [[ $# != 0 ]]; then
 fi
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-
 fail=0
 
 # 1. Bash syntax of every script
@@ -43,12 +42,12 @@ PY
     fi
 done
 
-# 3. Dockerfile must include the exploit path
+# 3. Dockerfile must include Metasploit and AutoBlue
 DF="$ROOT/infrastructure/Dockerfile"
-if grep -q 'AutoBlue-MS17-010' "$DF"; then
-    printf 'PASS Dockerfile references AutoBlue\n'
+if grep -q 'metasploit-framework' "$DF" && grep -q 'AutoBlue-MS17-010' "$DF"; then
+    printf 'PASS Dockerfile includes attack tooling\n'
 else
-    printf 'FAIL Dockerfile does not clone AutoBlue\n' >&2
+    printf 'FAIL Dockerfile missing Metasploit or AutoBlue\n' >&2
     fail=1
 fi
 
@@ -56,7 +55,6 @@ fi
 if python3 - "$TOPO" <<'PY'
 import re, sys
 src = open(sys.argv[1]).read()
-# find the qemu cmd list literal
 m = re.search(r'cmd\s*=\s*\[(.*?)\]', src, re.S)
 if not m:
     sys.exit(1)
@@ -70,14 +68,7 @@ else
     fail=1
 fi
 
-if [[ $fail -ne 0 ]]; then
-    printf '\nOne or more checks failed.\n' >&2
-    exit 1
-fi
-
-printf '\nAll static checks passed.\n'
-
-# 5. Unit tests, only if the suite exists
+# 5. Unit tests
 if [[ -d "$ROOT/tests" ]]; then
     cd "$ROOT"
     if ! python3 -B -m unittest discover -s tests -v; then

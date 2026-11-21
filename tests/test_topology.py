@@ -4,10 +4,8 @@ import unittest
 
 from infrastructure import topology
 
-
 def result(code=0, stdout="", stderr=""):
     return subprocess.CompletedProcess(args=[], returncode=code, stdout=stdout, stderr=stderr)
-
 
 class LaunchWindowsTests(unittest.TestCase):
     def test_no_kvm_uses_qemu64_only(self):
@@ -37,14 +35,14 @@ class WaitForSmbTests(unittest.TestCase):
     def test_returns_when_port_445_opens(self):
         with patch.object(
             topology.subprocess, "run",
-            return_value=result(stdout="445/tcp open  microsoft-ds"),
+            return_value=result(code=0)
         ):
-            topology.wait_for_smb("10.0.0.3", timeout=1)  # must not raise
+            topology.wait_for_smb("10.0.0.3", timeout=1)
 
     def test_raises_on_timeout(self):
         with patch.object(
             topology.subprocess, "run",
-            return_value=result(stdout="445/tcp closed"),
+            return_value=result(code=1)
         ):
             with self.assertRaises(topology.LabError):
                 topology.wait_for_smb("10.0.0.3", timeout=1)

