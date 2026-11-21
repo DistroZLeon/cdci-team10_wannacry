@@ -73,8 +73,7 @@ def setup_tap():
 
 
 def attach_tap():
-    run(*OVS, "add-port", SWITCH, TAP_NAME, "--", "set", "Interface", TAP_NAME, "type=internal")
-
+    run(*OVS, "add-port", SWITCH, TAP_NAME)
 
 def teardown_tap():
     run("ip", "link", "set", TAP_NAME, "down", check=False)
@@ -176,13 +175,12 @@ def run_lab(windows_image, victim_ip, hold):
 
 
 def setup_dhcp():
-    # Create the interface
     run("ip", "tuntap", "add", TAP_DHCP, "mode", "tap")
     run("ip", "link", "set", TAP_DHCP, "up")
-    run(*OVS, "add-port", SWITCH, TAP_DHCP, "--", "set", "Interface", TAP_DHCP, "type=internal")
-
+    
+    run(*OVS, "add-port", SWITCH, TAP_DHCP)
+    
     run("ip", "addr", "add", "10.0.0.1/24", "dev", TAP_DHCP)
-
     run("dnsmasq", "--interface=" + TAP_DHCP, 
         "--dhcp-range=10.0.0.3,10.0.0.3,255.255.255.0,1h", 
         "--pid-file=/run/cdci-dnsmasq.pid")
