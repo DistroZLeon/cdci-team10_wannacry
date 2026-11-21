@@ -17,7 +17,6 @@ ATTACKER_LINK = "attacker-eth0"
 ATTACKER_PORT = "s1-attacker"
 QEMU_PIDFILE = "/run/cdci-wannacry-qemu.pid"
 LOCK_FILE = "/run/cdci-wannacry.lock"
-TAP_NAME = "tap-win7"
 TAP_DHCP = "tap-dhcp"
 
 
