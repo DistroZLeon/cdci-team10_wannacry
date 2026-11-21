@@ -141,11 +141,11 @@ def run_lab(windows_image, victim_ip, hold):
     require_clean_state("Preflight")
     with ExitStack() as cleanup:
         net = Containernet(controller=None, switch=OVSSwitch, build=False)
-        cleanup.callback(stop_windows)
+        cleanup.callback(require_clean_state, "Teardown")
+        cleanup.callback(net.stop)
         cleanup.callback(teardown_dhcp)
         cleanup.callback(teardown_tap)
-        cleanup.callback(net.stop)
-        cleanup.callback(require_clean_state, "Teardown")
+        cleanup.callback(stop_windows)
 
         switch = net.addSwitch(SWITCH, failMode="standalone")
         attacker = net.addDocker(
