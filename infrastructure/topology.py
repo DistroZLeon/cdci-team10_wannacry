@@ -180,7 +180,11 @@ def setup_dhcp():
     run(*OVS, "add-port", SWITCH, TAP_DHCP)
     
     run("ip", "addr", "add", "10.0.0.1/24", "dev", TAP_DHCP)
-    run("dnsmasq", "--interface=" + TAP_DHCP, 
+    
+    run("dnsmasq", 
+        "--interface=" + TAP_DHCP, 
+        "--bind-interfaces",
+        "--port=0",
         "--dhcp-range=10.0.0.3,10.0.0.3,255.255.255.0,1h", 
         "--pid-file=/run/cdci-dnsmasq.pid")
 
