@@ -11,7 +11,7 @@ apt-get update
 apt-get install -y \
     python3-venv docker.io openvswitch-switch \
     qemu-system-x86 qemu-utils cpu-checker dnsmasq unzip p7zip-full \
-    iproute2 curl jq gdown make build-essential
+    net-tools iproute2 curl jq gdown make build-essential
 
 # --- venv + requirements ---
 install -d -m 0755 "$STATE"
