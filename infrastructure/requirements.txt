@@ -1,0 +1,2 @@
+# Editable checkout also supplies the source needed to build mnexec.
+-e git+https://github.com/containernet/containernet.git@8e0aabef8f23def3961b30897dd486191d9bd693#egg=mininet
